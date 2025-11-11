@@ -84,7 +84,7 @@ export default async ({ req, res, log, error }) => {
     // 7) BURADA mail fonksiyonunu tetikleyebilirsin
     // Örnek (şimdilik yorum satırı):
   
-    await fetch("6909b832001efa359c90.fra.appwrite.run", {
+    await fetch("https://6909b832001efa359c90.fra.appwrite.run", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -116,3 +116,4 @@ export default async ({ req, res, log, error }) => {
     );
   }
 };
+
