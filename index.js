@@ -40,7 +40,7 @@ module.exports = async function (context) {
     const databases = new sdk.Databases(client);
 
     const databaseId = "scraper";      // kendi database ID'ini buraya yaz
-    const collectionId = "page_texts"; // kendi collection ID'ini buraya yaz
+    const collectionId = "page_text"; // kendi collection ID'ini buraya yaz
 
     // 3. HTML'i indir
     const response = await fetch(url);
@@ -109,3 +109,4 @@ module.exports = async function (context) {
     );
   }
 };
+
