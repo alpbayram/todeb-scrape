@@ -1,14 +1,13 @@
 import { Client, Databases, ID } from "node-appwrite";
 import * as cheerio from "cheerio";
 
-// Appwrite Function entry point
 export default async ({ req, res, log, error }) => {
   try {
     // 1) Appwrite client'ı hazırla
     const client = new Client()
-      .setEndpoint(process.env.APPWRITE_ENDPOINT)        // Örn: https://cloud.appwrite.io/v1
-      .setProject(process.env.APPWRITE_PROJECT_ID)       // Proje ID
-      .setKey(process.env.APPWRITE_API_KEY);             // API Key
+      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)  // Otomatik gelen endpoint
+      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)     // Otomatik gelen project id
+      .setKey(process.env.APPWRITE_FUNCTION_API_KEY);           // Dynamic API key
 
     const databases = new Databases(client);
 
@@ -19,7 +18,7 @@ export default async ({ req, res, log, error }) => {
     // 3) HTML'i cheerio ile parse et
     const $ = cheerio.load(html);
 
-    // Selector: .css-18unqsv a:first-child .css-63gy1o span
+    // İstediğin selector
     const text = $(".css-18unqsv a:first-child .css-63gy1o span")
       .first()
       .text()
@@ -29,11 +28,14 @@ export default async ({ req, res, log, error }) => {
       throw new Error("Selector ile herhangi bir metin bulunamadı.");
     }
 
-    // 4) Appwrite Databases'e kaydet
+    // 4) Database/collection id'lerini buraya sabit yaz
+    const DATABASE_ID = "BURAYA_SENİN_DATABASE_ID";
+    const COLLECTION_ID = "BURAYA_SENİN_COLLECTION_ID";
+
     const doc = await databases.createDocument(
-      process.env.APPWRITE_DATABASE_ID,
-      process.env.APPWRITE_COLLECTION_ID,
-      ID.unique(), // otomatik random ID
+      DATABASE_ID,
+      COLLECTION_ID,
+      ID.unique(),
       {
         text,
         createdAt: new Date().toISOString()
@@ -42,7 +44,7 @@ export default async ({ req, res, log, error }) => {
 
     log(`Kaydedilen doküman ID: ${doc.$id}`);
 
-    // 5) Fonksiyonun HTTP cevabı
+    // 5) Çağırana basit bir JSON dön
     return res.json({
       success: true,
       text,
