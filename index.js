@@ -1,53 +1,64 @@
 import { Client, Databases, ID } from "node-appwrite";
-import * as cheerio from "cheerio";
 
 export default async ({ req, res, log, error }) => {
   try {
-    // 1) Appwrite client'ı hazırla
+    // 1) Appwrite client
     const client = new Client()
-      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)  // Otomatik gelen endpoint
-      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)     // Otomatik gelen project id
-      .setKey(process.env.APPWRITE_FUNCTION_API_KEY);           // Dynamic API key
+      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
+      .setKey(process.env.APPWRITE_FUNCTION_API_KEY);
 
     const databases = new Databases(client);
 
-    // 2) Sayfayı çek
-    const response = await fetch("https://gib.gov.tr/mevzuat/taslak");
-    const html = await response.text();
+    // 2) GİB API'ine POST isteği
+    const response = await fetch(
+      "https://gib.gov.tr/api/gibportal/mevzuat/taslak/list?page=0&size=10",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          deleted: false,
+          status: 2
+        })
+      }
+    );
 
-    // 3) HTML'i cheerio ile parse et
-    const $ = cheerio.load(html);
-
-    // İstediğin selector
-    const text = $(".css-18unqsv a:first-child .css-63gy1o span")
-      .first()
-      .text()
-      .trim();
-
-    if (!text) {
-      throw new Error("Selector ile herhangi bir metin bulunamadı.");
+    if (!response.ok) {
+      throw new Error("API çağrısı başarısız. Status: " + response.status);
     }
 
-    // 4) Database/collection id'lerini buraya sabit yaz
-    const DATABASE_ID = "6912d6b4003e2fe8c7aa";
-    const COLLECTION_ID = "taslaklar";
+    // 3) JSON'u çöz
+    const data = await response.json();
+
+    // 4) İlk kaydın title'ını al
+    const title = data?.resultContainer?.content?.[0]?.title?.trim();
+
+    if (!title) {
+      throw new Error("JSON içinde title bulunamadı.");
+    }
+
+    // 5) Appwrite Database'e kaydet
+    const DATABASE_ID = "BURAYA_SENİN_DATABASE_ID";
+    const COLLECTION_ID = "BURAYA_SENİN_COLLECTION_ID";
 
     const doc = await databases.createDocument(
       DATABASE_ID,
       COLLECTION_ID,
       ID.unique(),
       {
-        text,
+        text: title,
         createdAt: new Date().toISOString()
       }
     );
 
     log(`Kaydedilen doküman ID: ${doc.$id}`);
 
-    // 5) Çağırana basit bir JSON dön
     return res.json({
       success: true,
-      text,
+      title,
       documentId: doc.$id
     });
   } catch (e) {
@@ -55,10 +66,9 @@ export default async ({ req, res, log, error }) => {
     return res.json(
       {
         success: false,
-        message: e.message || "Bilinmeyen bir hata oluştu"
+        message: e.message || "Bilinmeyen hata"
       },
       500
     );
   }
 };
-
