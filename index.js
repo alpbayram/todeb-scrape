@@ -55,7 +55,7 @@ export default async ({ req, res, log, error }) => {
       ID.unique(),
       {
         text: title,
-        createdAt: new Date().toISOString()
+       
       }
     );
 
@@ -90,3 +90,4 @@ export default async ({ req, res, log, error }) => {
     );
   }
 };
+
