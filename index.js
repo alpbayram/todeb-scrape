@@ -1,112 +1,61 @@
-const sdk = require("node-appwrite");
-const cheerio = require("cheerio");
+import { Client, Databases, ID } from "node-appwrite";
+import * as cheerio from "cheerio";
 
-module.exports = async function (context) {
-  // context içinden ihtiyacımız olanları tek tek alıyoruz
-  const req = context.req;
-  const res = context.res;
-  const log = context.log;
-  const errorLog = context.error;
-
+// Appwrite Function entry point
+export default async ({ req, res, log, error }) => {
   try {
-    // 1. Gönderilen body'yi JSON olarak al
-    // Appwrite yeni nesil dokümana göre body için bodyJson kullanılmalı
-    // (Console'da JSON yazdığında buradan okunuyor)
-    const body = req.bodyJson;
+    // 1) Appwrite client'ı hazırla
+    const client = new Client()
+      .setEndpoint(process.env.APPWRITE_ENDPOINT)        // Örn: https://cloud.appwrite.io/v1
+      .setProject(process.env.APPWRITE_PROJECT_ID)       // Proje ID
+      .setKey(process.env.APPWRITE_API_KEY);             // API Key
 
-    let url = null;
-    if (body && body.url) {
-      url = body.url;
-    }
+    const databases = new Databases(client);
 
-    if (!url) {
-      return res.json(
-        {
-          error: "URL gerekli. Örneğin body içine { \"url\": \"https://ornek.com\" } gönder."
-        },
-        400
-      );
-    }
-
-    // 2. Appwrite client'ını hazırla
-    const client = new sdk.Client();
-
-    client
-      // API endpoint env değişkeni: APPWRITE_FUNCTION_API_ENDPOINT
-      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
-      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
-      .setKey(process.env.APPWRITE_FUNCTION_API_KEY);
-
-    const databases = new sdk.Databases(client);
-
-    const databaseId = "scraper";      // kendi database ID'ini buraya yaz
-    const collectionId = "page_text"; // kendi collection ID'ini buraya yaz
-
-    // 3. HTML'i indir
-    const response = await fetch(url);
+    // 2) Sayfayı çek
+    const response = await fetch("https://gib.gov.tr/mevzuat/taslak");
     const html = await response.text();
 
-    // 4. HTML'i cheerio ile parse et
+    // 3) HTML'i cheerio ile parse et
     const $ = cheerio.load(html);
 
-    // 5. İlgili selector ile elementi bul
-    const selector = ".css-18unqsv a:first-child .css-63gy1o span";
-    const selectedElement = $(selector);
+    // Selector: .css-18unqsv a:first-child .css-63gy1o span
+    const text = $(".css-18unqsv a:first-child .css-63gy1o span")
+      .first()
+      .text()
+      .trim();
 
-    // 6. Elementin içindeki text değerini al
-    const textValue = selectedElement.text().trim();
-
-    if (!textValue) {
-      return res.json(
-        {
-          error: "Verilen selector ile text bulunamadı.",
-          url: url,
-          selector: selector
-        },
-        404
-      );
+    if (!text) {
+      throw new Error("Selector ile herhangi bir metin bulunamadı.");
     }
 
-    // 7. Veritabanına kaydet
-    const createdAt = new Date().toISOString();
-
-    const result = await databases.createDocument(
-      databaseId,
-      collectionId,
-      "unique()",
+    // 4) Appwrite Databases'e kaydet
+    const doc = await databases.createDocument(
+      process.env.APPWRITE_DATABASE_ID,
+      process.env.APPWRITE_COLLECTION_ID,
+      ID.unique(), // otomatik random ID
       {
-        url: url,
-        selector: selector,
-        text: textValue,
-        createdAt: createdAt
+        text,
+        createdAt: new Date().toISOString()
       }
     );
 
-    // 8. Başarılı sonucu geri döndür
-    return res.json(
-      {
-        message: "Veri başarıyla kaydedildi.",
-        data: {
-          url: url,
-          selector: selector,
-          text: textValue,
-          createdAt: createdAt,
-          documentId: result.$id
-        }
-      },
-      200
-    );
-  } catch (error) {
-    // Hata logla
-    errorLog(error);
+    log(`Kaydedilen doküman ID: ${doc.$id}`);
 
-    // Hata cevabını geri döndür
+    // 5) Fonksiyonun HTTP cevabı
+    return res.json({
+      success: true,
+      text,
+      documentId: doc.$id
+    });
+  } catch (e) {
+    error(e);
     return res.json(
       {
-        error: error.message || "Bilinmeyen bir hata oluştu."
+        success: false,
+        message: e.message || "Bilinmeyen bir hata oluştu"
       },
       500
     );
   }
 };
-
