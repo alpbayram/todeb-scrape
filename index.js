@@ -29,8 +29,8 @@ export default async ({ req, res, log, error }) => {
     }
 
     // 4) Database/collection id'lerini buraya sabit yaz
-    const DATABASE_ID = "BURAYA_SENİN_DATABASE_ID";
-    const COLLECTION_ID = "BURAYA_SENİN_COLLECTION_ID";
+    const DATABASE_ID = "6912d6b4003e2fe8c7aa";
+    const COLLECTION_ID = "taslaklar";
 
     const doc = await databases.createDocument(
       DATABASE_ID,
@@ -61,3 +61,4 @@ export default async ({ req, res, log, error }) => {
     );
   }
 };
+
