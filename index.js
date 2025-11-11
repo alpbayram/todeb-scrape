@@ -1,16 +1,18 @@
 import { Client, Databases, ID } from "node-appwrite";
 
 export default async ({ req, res, log, error }) => {
+  // DEBUG: Fonksiyon için Appwrite tarafından verilen key var mı?
+  const hasFunctionKey = !!process.env.APPWRITE_FUNCTION_API_KEY;
+  const endpoint = process.env.APPWRITE_FUNCTION_API_ENDPOINT;
+  const projectId = process.env.APPWRITE_FUNCTION_PROJECT_ID;
+
   try {
     // 1) Appwrite client
     const client = new Client()
-      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
-      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
-      
-      .setKey(process.env.APPWRITE_FUNCTION_API_KEY);
-log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_KEY);
-log("has function key: " + !!process.env.APPWRITE_FUNCTION_PROJECT_ID);
-log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_ENDPOINT);
+      .setEndpoint(endpoint)
+      .setProject(projectId)
+      .setKey(process.env.APPWRITE_FUNCTION_API_KEY); // 🔴 Dinamik function key
+
     const databases = new Databases(client);
 
     // 2) GİB API'ine POST isteği
@@ -44,8 +46,8 @@ log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_ENDPOINT);
     }
 
     // 5) Appwrite Database'e kaydet
-    const DATABASE_ID = "6912d6b4003e2fe8c7aa";
-    const COLLECTION_ID = "taslaklar";
+    const DATABASE_ID = "6912d6b4003e2fe8c7aa";      // 👈 değiştir
+    const COLLECTION_ID = "taslaklar";  // 👈 değiştir
 
     const doc = await databases.createDocument(
       DATABASE_ID,
@@ -59,23 +61,32 @@ log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_ENDPOINT);
 
     log(`Kaydedilen doküman ID: ${doc.$id}`);
 
+    // Başarılı cevap + debug bilgisi
     return res.json({
       success: true,
       title,
-      documentId: doc.$id
+      documentId: doc.$id,
+      debug: {
+        hasFunctionKey,
+        endpoint,
+        projectId
+      }
     });
   } catch (e) {
     error(e);
+
+    // Hata cevabı + debug bilgisi
     return res.json(
       {
         success: false,
-        message: e.message || "Bilinmeyen hata"
+        message: e.message || "Bilinmeyen hata",
+        debug: {
+          hasFunctionKey,
+          endpoint,
+          projectId
+        }
       },
       500
     );
   }
 };
-
-
-
-
