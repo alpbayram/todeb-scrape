@@ -8,9 +8,9 @@ export default async ({ req, res, log, error }) => {
       .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
       
       .setKey(process.env.APPWRITE_FUNCTION_API_KEY);
-context.log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_KEY);
-  context.log("has function key: " + !!process.env.APPWRITE_FUNCTION_PROJECT_ID);
-    context.log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_ENDPOINT);
+log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_KEY);
+log("has function key: " + !!process.env.APPWRITE_FUNCTION_PROJECT_ID);
+log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_ENDPOINT);
     const databases = new Databases(client);
 
     // 2) GİB API'ine POST isteği
@@ -75,6 +75,7 @@ context.log("has function key: " + !!process.env.APPWRITE_FUNCTION_API_KEY);
     );
   }
 };
+
 
 
 
