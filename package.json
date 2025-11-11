@@ -1,0 +1,14 @@
+{
+	"name": "appwrite-scraper-function",
+	"version": "1.0.0",
+	"description": "Belirli bir selector'dan text çekip Appwrite Database'e kaydeden function.",
+	"main": "index.js",
+	"type": "commonjs",
+	"scripts": {
+		"start": "node index.js"
+	},
+	"dependencies": {
+		"node-appwrite": "13.0.0",
+		"cheerio": "1.0.0"
+	}
+}
