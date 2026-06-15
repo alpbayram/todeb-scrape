@@ -77,14 +77,11 @@ export default async ({ req, res, log, error }) => {
         );
 
         const functions = new Functions(client);
-        const execution = await functions.createExecution({
-            functionId: required(
-                "WORKER_FUNCTION_ID",
-                WORKER_FUNCTION_ID
-            ),
+        const execution = await functions.createExecution(
+            required("WORKER_FUNCTION_ID", WORKER_FUNCTION_ID).trim(),
             body,
-            async: true,
-        });
+            true
+        );
 
         log(`Worker queued. executionId=${execution.$id}`);
 
