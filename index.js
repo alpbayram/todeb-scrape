@@ -72,6 +72,9 @@ export default async ({ req, res, log, error }) => {
         log(
             `Receiver started. payloadSize=${payloadSize}, distillId=${distillId}`
         );
+        log(
+            `WORKER_FUNCTION_ID length=${WORKER_FUNCTION_ID?.length ?? 0}, trimmedLength=${WORKER_FUNCTION_ID?.trim().length ?? 0}`
+        );
 
         const functions = new Functions(client);
         const execution = await functions.createExecution({
