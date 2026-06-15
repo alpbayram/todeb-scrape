@@ -1,119 +1,108 @@
-import { Client, Databases, ID, Query } from "node-appwrite";
+import { Client, Functions } from "node-appwrite";
+
+const APPWRITE_ENDPOINT =
+    process.env.APPWRITE_ENDPOINT ||
+    process.env.APPWRITE_FUNCTION_API_ENDPOINT;
+
+const APPWRITE_PROJECT_ID =
+    process.env.APPWRITE_PROJECT_ID ||
+    process.env.APPWRITE_FUNCTION_PROJECT_ID;
+
+const APPWRITE_API_KEY = process.env.APPWRITE_API_KEY;
+const WORKER_FUNCTION_ID = process.env.WORKER_FUNCTION_ID;
+
+function required(name, value) {
+    if (!value) {
+        throw new Error(`Eksik environment variable: ${name}`);
+    }
+
+    return value;
+}
+
+function serializeBody(rawBody) {
+    if (typeof rawBody === "string") {
+        const body = rawBody.trim();
+        if (!body) throw new Error("Request body bos.");
+
+        JSON.parse(body);
+        return body;
+    }
+
+    if (!rawBody || typeof rawBody !== "object") {
+        throw new Error("Request body gecerli bir JSON olmali.");
+    }
+
+    if (Object.keys(rawBody).length === 0) {
+        throw new Error("Request body bos.");
+    }
+
+    return JSON.stringify(rawBody);
+}
 
 export default async ({ req, res, log, error }) => {
-  try {
-    // 1) Appwrite client
-    const client = new Client()
-      .setEndpoint(process.env.APPWRITE_ENDPOINT)
-      .setProject(process.env.APPWRITE_PROJECT_ID)
-      .setKey(process.env.APPWRITE_API_KEY);
+    try {
+        const method = String(req.method || "POST").toUpperCase();
 
-    const databases = new Databases(client);
+        if (method !== "POST") {
+            return res.json(
+                { ok: false, error: "Yalnizca POST destekleniyor." },
+                405
+            );
+        }
 
-    const DATABASE_ID = process.env.DATABASE_ID;
-    const COLLECTION_ID = process.env.COLLECTION_ID;
+        const body = serializeBody(req.body);
+        const payloadSize = Buffer.byteLength(body, "utf8");
+        const payload = JSON.parse(body);
+        const distillId = payload?.id || "unknown";
 
-    // 2) GİB API'ine POST isteği
-    const response = await fetch(
-      "https://gib.gov.tr/api/gibportal/mevzuat/taslak/list?page=0&size=10",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({
-          deleted: false,
-          status: 2
-        })
-      }
-    );
+        const dynamicApiKey =
+            req.headers?.["x-appwrite-key"] ||
+            req.headers?.["X-Appwrite-Key"];
 
-    if (!response.ok) {
-      throw new Error("API çağrısı başarısız. Status: " + response.status);
+        const client = new Client()
+            .setEndpoint(required("APPWRITE_ENDPOINT", APPWRITE_ENDPOINT))
+            .setProject(required("APPWRITE_PROJECT_ID", APPWRITE_PROJECT_ID))
+            .setKey(
+                required(
+                    "APPWRITE_API_KEY veya x-appwrite-key",
+                    APPWRITE_API_KEY || dynamicApiKey
+                )
+            );
+
+        log(
+            `Receiver started. payloadSize=${payloadSize}, distillId=${distillId}`
+        );
+
+        const functions = new Functions(client);
+        const execution = await functions.createExecution({
+            functionId: required(
+                "WORKER_FUNCTION_ID",
+                WORKER_FUNCTION_ID
+            ),
+            body,
+            async: true,
+        });
+
+        log(`Worker queued. executionId=${execution.$id}`);
+
+        return res.json(
+            {
+                ok: true,
+                accepted: true,
+                executionId: execution.$id,
+            },
+            202
+        );
+    } catch (err) {
+        if (error) error(err);
+
+        return res.json(
+            {
+                ok: false,
+                accepted: false,
+                error: err?.message || String(err),
+            },
+            500
+        );
     }
-
-    const data = await response.json();
-
-    // 3) Yeni title
-    const newTitle = data?.resultContainer?.content?.[0]?.title?.trim();
-
-    if (!newTitle) {
-      throw new Error("JSON içinde title bulunamadı.");
-    }
-
-    // 4) DB'deki SON kaydı çek (en son oluşturulan doküman)
-    const lastDocs = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID,
-      [
-        Query.orderDesc("$createdAt"),
-        Query.limit(1)
-      ]
-    );
-
-    let lastTitle = null;
-
-    if (lastDocs.total > 0) {
-      lastTitle = lastDocs.documents[0].text;
-    }
-
-    // 5) Değişmemişse hiçbir şey yapma
-    if (lastTitle === newTitle) {
-      log("Başlık değişmemiş, hiçbir işlem yapılmadı.");
-      return res.json({
-        success: true,
-        changed: false,
-        message: "Başlık aynı, DB ve mail tarafında işlem yapmadım.",
-        currentTitle: newTitle
-      });
-    }
-
-    // 6) Değişmişse: yeni doküman kaydet
-    const doc = await databases.createDocument(
-      DATABASE_ID,
-      COLLECTION_ID,
-      ID.unique(),
-      {
-        text: newTitle        
-      }
-    );
-
-    log(`Yeni başlık kaydedildi. Doküman ID: ${doc.$id}`);
-
-    // 7) BURADA mail fonksiyonunu tetikleyebilirsin
-    // Örnek (şimdilik yorum satırı):
-  
-    await fetch("https://6909b832001efa359c90.fra.appwrite.run", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({        
-       newChanges: newTitle,
-       oldState: lastTitle,
-        to:"alp.bayram@todeb.org.tr",
-        subject: "Distill.io Güncelleme Raporu"
-      })
-    });
-   
-    return res.json({
-      success: true,
-      changed: true,
-      message: "Başlık değişmiş, yeni kayıt DB'ye yazıldı ve burada mail tetiklenebilir.",
-      newTitle,
-      previousTitle: lastTitle,
-      documentId: doc.$id
-    });
-  } catch (e) {
-    error(e);
-    return res.json(
-      {
-        success: false,
-        message: e.message || "Bilinmeyen hata"
-      },
-      500
-    );
-  }
 };
-
