@@ -41,16 +41,34 @@ function serializeBody(rawBody) {
 
 export default async ({ req, res, log, error }) => {
     try {
+        const trigger =
+            req.headers?.["x-appwrite-trigger"] ||
+            req.headers?.["X-Appwrite-Trigger"];
+
+        const debug =
+            req.headers?.["x-debug-trigger"] ||
+            req.headers?.["X-Debug-Trigger"];
+
+        const isWarmupSchedule = trigger === "schedule" || debug === "warmup";
         const method = String(req.method || "POST").toUpperCase();
 
-        if (method !== "POST") {
+        if (!isWarmupSchedule && method !== "POST") {
             return res.json(
                 { ok: false, error: "Yalnizca POST destekleniyor." },
                 405
             );
         }
 
-        const body = serializeBody(req.body);
+        const body = isWarmupSchedule
+            ? JSON.stringify({
+                id: "__warmup_probe__",
+                name: "warmup-probe",
+                uri: "warmup-probe",
+                text: "{}",
+                ts: new Date().toISOString(),
+                to: "warmup@local",
+            })
+            : serializeBody(req.body);
         const payloadSize = Buffer.byteLength(body, "utf8");
         const payload = JSON.parse(body);
         const distillId = payload?.id || "unknown";
@@ -72,9 +90,6 @@ export default async ({ req, res, log, error }) => {
         log(
             `Receiver started. payloadSize=${payloadSize}, distillId=${distillId}`
         );
-        log(
-            `WORKER_FUNCTION_ID length=${WORKER_FUNCTION_ID?.length ?? 0}, trimmedLength=${WORKER_FUNCTION_ID?.trim().length ?? 0}`
-        );
 
         const functions = new Functions(client);
         const execution = await functions.createExecution(
@@ -90,6 +105,7 @@ export default async ({ req, res, log, error }) => {
                 ok: true,
                 accepted: true,
                 executionId: execution.$id,
+                warmup: isWarmupSchedule,
             },
             202
         );
